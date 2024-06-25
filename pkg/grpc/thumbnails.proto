@@ -1,0 +1,23 @@
+syntax = "proto3";
+
+package thumbnails;
+
+option go_package = "moxicom.grpc-youtube-thumbnail-service.v1;ytthumbs";
+
+service YouTubeThumbnailService {
+    rpc GetThumbnails(ThumbnailsRequest) returns (ThumbnailsResponse);
+}
+
+message ThumbnailsRequest {
+    repeated string video_urls = 1;
+}
+
+message ThumbnailsResponse {
+    repeated Thumbnail thumbnails = 1;
+}
+
+message Thumbnail {
+    string video_url = 1;
+    bytes thumbnail = 2;
+    string error = 3;
+}
