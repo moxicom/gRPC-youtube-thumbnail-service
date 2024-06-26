@@ -19,5 +19,4 @@ message ThumbnailsResponse {
 message Thumbnail {
     string video_url = 1;
     bytes thumbnail = 2;
-    string error = 3;
 }

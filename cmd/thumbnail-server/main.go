@@ -5,7 +5,8 @@ import (
 	"os"
 
 	"github.com/moxicom/grpc-youtube-thumbnail-service/pkg/app"
-	"github.com/moxicom/grpc-youtube-thumbnail-service/pkg/services"
+	thumbs_service "github.com/moxicom/grpc-youtube-thumbnail-service/pkg/services/thumbs"
+	runtimecache "github.com/moxicom/grpc-youtube-thumbnail-service/pkg/storage/runtime_cache"
 )
 
 const (
@@ -13,13 +14,10 @@ const (
 	envProd  = "prod"
 )
 
-// https://img.youtube.com/vi/l_o0izWJeCA/0.jpg
-
 func main() {
 	log := setupLogger("local")
-
-	service := services.New()
-
+	storage := runtimecache.New(log)
+	service := thumbs_service.New(log, storage)
 	app := app.New(log, service, 8080)
 
 	if err := app.Run(); err != nil {

@@ -1,13 +1,8 @@
 package services
 
-import (
-	"github.com/moxicom/grpc-youtube-thumbnail-service/pkg/services/thumbs_service"
+import "errors"
+
+var (
+	ErrVideoNotFound = errors.New("video not found")
+	ErrBadURL = errors.New("bad video url")
 )
-
-type GeneralService struct {
-	thumbs_service.ThumbsService
-}
-
-func New() *GeneralService {
-	return &GeneralService{}
-}
