@@ -11,6 +11,11 @@ import (
 	"github.com/moxicom/grpc-youtube-thumbnail-service/pkg/services"
 )
 
+const (
+	ytThumbURLPattern = `(?:youtube\.com/watch\?v=|youtu\.be/)([^&]+)`
+	ytThumbURLFormat  = "https://img.youtube.com/vi/%s/0.jpg"
+)
+
 type Storage interface {
 	GetThumb(context.Context, string) ([]byte, error)
 	PutThumb(context.Context, string, []byte) error
@@ -26,51 +31,54 @@ func New(log *slog.Logger, storage Storage) *ThumbsService{
 }
 
 func (s *ThumbsService) ParseUrls(urls []string) ([]string, error) {
+	re := regexp.MustCompile(ytThumbURLPattern)
 	ids := make([]string, len(urls))
+
 	for i, url := range urls {
-		re := regexp.MustCompile(`(?:youtube\.com/watch\?v=|youtu\.be/)([^&]+)`)
     	matches := re.FindStringSubmatch(url)
 		if len(matches) < 2 {
 			return []string{}, services.ErrBadURL
 		}
 		ids[i] = matches[1]
 	}
+	
 	return ids, nil
 }
 
 // GetImage - get image from storage or receive it from api and write to cache
-func (s *ThumbsService) GetImage(ctx context.Context, url string) ([]byte, error) {
+func (s *ThumbsService) GetImage(ctx context.Context, videoID string) ([]byte, error) {
 	const op = "thumbs_service.GetImage"
 	log := s.log.With(slog.String("op", op))
 
-	thumb, err := s.storage.GetThumb(ctx, url)
+	thumb, err := s.storage.GetThumb(ctx, videoID)
 	if err != nil {
 		return []byte{}, err
 	}
 
 	if len(thumb) == 0 {
-		thumb, err = s.requestImageThumb(ctx, url)
+		log.Debug("Thumbnail not found in storage, requesting from API", slog.String("videoID", videoID))
+		thumb, err = s.requestImageThumb(ctx, videoID)
 		if err != nil {
 			return []byte{}, err
 		}
-		log.Debug("Got from API")	
-		err := s.storage.PutThumb(ctx, url, thumb)
+		log.Debug("Got thumbnail from API", slog.String("videoID", videoID))	
+		err := s.storage.PutThumb(ctx, videoID, thumb)
 		if err != nil {
 			return []byte{}, err
 		}
 	} else {
-		log.Debug("Found in storage")	
+		log.Debug("Thumbnail found in storage", slog.String("videoID", videoID))
 	}
 	return thumb, nil
 
 }
 
-func (s *ThumbsService) requestImageThumb(ctx context.Context, url string) ([]byte, error) {
+func (s *ThumbsService) requestImageThumb(ctx context.Context, videoID string) ([]byte, error) {
 	const op = "thumbs_service.RequestImageThumb"
 	log := s.log.With(slog.String("op", op))
 
-	requestUrl := fmt.Sprintf("https://img.youtube.com/vi/%s/0.jpg", url)
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, requestUrl, nil)
+	requestURL := fmt.Sprintf(ytThumbURLFormat, videoID)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, requestURL, nil)
     if err != nil {
 		log.Error("%s error creating request: %s", op, err.Error())
         return []byte{}, err
@@ -78,20 +86,20 @@ func (s *ThumbsService) requestImageThumb(ctx context.Context, url string) ([]by
 
     response, err := http.DefaultClient.Do(req)
     if err != nil {
-		log.Error("%s error when requesting an image: %s", op, err.Error())
+		log.Error("Error requesting thumbnail", slog.String("url", requestURL), slog.String("error", err.Error()))
         return []byte{}, err
     }
     defer response.Body.Close()
 
     if response.StatusCode != http.StatusOK {
-		err = fmt.Errorf("%s response code is not ok: %d", op, response.StatusCode)
+		err = fmt.Errorf("unexpected response code: %d", response.StatusCode)
 		log.Error(err.Error())
-        return []byte{}, err 
+        return []byte{}, services.ErrVideoNotFound 
     }
 
     data, err := io.ReadAll(response.Body)
     if err != nil {
-		log.Error("%s error while reading response body: %s", op, err.Error())
+		log.Error("Error reading response body", slog.String("url", requestURL), slog.String("error", err.Error()))
         return []byte{}, err
     }
 
