@@ -40,7 +40,8 @@ func main() {
 	log := logger.SetupLogger(envLog)
 	client := client.New(log, serverAddr, videoUrls)
 
-	ctx, _ := context.WithTimeout(context.Background(), time.Second*5)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+	defer cancel()
 
 	start := time.Now()
 
