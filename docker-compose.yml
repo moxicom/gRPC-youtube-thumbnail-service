@@ -2,8 +2,6 @@ version: "3.8"
 
 services:
   app:
-      depends_on:
-          - postgres
       build:
         context: .
         dockerfile: dockerfile
