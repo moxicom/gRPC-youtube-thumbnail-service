@@ -28,7 +28,7 @@ jobs:
             ${{ runner.os }}-docker-
 
       - name: Build Docker image
-        run: docker-compose build
+        run: docker-compose build app
 
       - name: Run tests in Docker container
         run: docker-compose run --rm app go test -v ./...
@@ -40,7 +40,7 @@ jobs:
           DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
         run: |
           echo $DOCKER_PASSWORD | docker login $DOCKER_REGISTRY -u $DOCKER_USERNAME --password-stdin
-          docker-compose push
+          docker-compose push app
 
   deploy:
     runs-on: ubuntu-latest
