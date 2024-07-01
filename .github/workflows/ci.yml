@@ -33,12 +33,6 @@ jobs:
       - name: Run tests in Docker container
         run: docker-compose run --rm app go test -v ./...
 
-      - name: Login to Docker Hub
-        run: docker login -u ${{ secrets.DOCKER_USERNAME }} -p ${{ secrets.DOCKER_PASSWORD }} ${{ secrets.DOCKER_REGISTRY }}
-
-      - name: Push Docker image to registry
-        run: docker-compose push app
-
   deploy:
     runs-on: ubuntu-latest
     needs: build
