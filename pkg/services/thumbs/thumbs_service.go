@@ -13,7 +13,7 @@ import (
 
 const (
 	ytThumbURLPattern = `(?:youtube\.com/watch\?v=|youtu\.be/)([^&]+)`
-	ytThumbURLFormat  = "https://img.youtube.com/vi/%s/0.jpg"
+	ytThumbURLFormat  = "https://i.ytimg.com/vi/%s/maxresdefault.jpg"
 )
 
 type Storage interface {
@@ -23,25 +23,29 @@ type Storage interface {
 
 type ThumbsService struct {
 	storage Storage
-	log *slog.Logger
+	log     *slog.Logger
 }
 
-func New(log *slog.Logger, storage Storage) *ThumbsService{
+func New(log *slog.Logger, storage Storage) *ThumbsService {
 	return &ThumbsService{storage, log}
 }
 
 func (s *ThumbsService) ParseUrls(urls []string) ([]string, error) {
+	const op = "thumbs_service.ParseUrls"
+	log := s.log.With(slog.String("op", op))
+
 	re := regexp.MustCompile(ytThumbURLPattern)
 	ids := make([]string, len(urls))
 
 	for i, url := range urls {
-    	matches := re.FindStringSubmatch(url)
+		matches := re.FindStringSubmatch(url)
 		if len(matches) < 2 {
+			log.Error("Bad url", slog.String("url", url))
 			return []string{}, services.ErrBadURL
 		}
 		ids[i] = matches[1]
 	}
-	
+
 	return ids, nil
 }
 
@@ -61,7 +65,7 @@ func (s *ThumbsService) GetImage(ctx context.Context, videoID string) ([]byte, e
 		if err != nil {
 			return []byte{}, err
 		}
-		log.Debug("Got thumbnail from API", slog.String("videoID", videoID))	
+		log.Debug("Got thumbnail from API", slog.String("videoID", videoID))
 		err := s.storage.PutThumb(ctx, videoID, thumb)
 		if err != nil {
 			return []byte{}, err
@@ -77,31 +81,35 @@ func (s *ThumbsService) requestImageThumb(ctx context.Context, videoID string) (
 	const op = "thumbs_service.RequestImageThumb"
 	log := s.log.With(slog.String("op", op))
 
+	log.Debug("Requesing thumbnail from api", slog.String("videoID", videoID))
+
 	requestURL := fmt.Sprintf(ytThumbURLFormat, videoID)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, requestURL, nil)
-    if err != nil {
-		log.Error("%s error creating request: %s", op, err.Error())
-        return []byte{}, err
-    }
+	if err != nil {
+		log.Error("error creating request", slog.Any("err", err))
+		return []byte{}, err
+	}
 
-    response, err := http.DefaultClient.Do(req)
-    if err != nil {
-		log.Error("Error requesting thumbnail", slog.String("url", requestURL), slog.String("error", err.Error()))
-        return []byte{}, err
-    }
-    defer response.Body.Close()
+	response, err := http.DefaultClient.Do(req)
+	if err != nil {
+		log.Error("Error requesting thumbnail", slog.String("url", requestURL), slog.Any("err", err))
+		return []byte{}, err
+	}
+	defer response.Body.Close()
 
-    if response.StatusCode != http.StatusOK {
+	if response.StatusCode != http.StatusOK {
 		err = fmt.Errorf("unexpected response code: %d", response.StatusCode)
 		log.Error(err.Error())
-        return []byte{}, services.ErrVideoNotFound 
-    }
+		return []byte{}, services.ErrVideoNotFound
+	}
 
-    data, err := io.ReadAll(response.Body)
-    if err != nil {
-		log.Error("Error reading response body", slog.String("url", requestURL), slog.String("error", err.Error()))
-        return []byte{}, err
-    }
+	data, err := io.ReadAll(response.Body)
+	if err != nil {
+		log.Error("Error reading response body", slog.String("url", requestURL), slog.Any("error", err))
+		return []byte{}, err
+	}
 
-    return data, nil
+	log.Debug("Got thumbnail from api", slog.String("videoID", videoID))
+
+	return data, nil
 }
