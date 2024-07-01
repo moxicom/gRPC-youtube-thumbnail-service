@@ -53,7 +53,7 @@ func (c *Client) FetchThumbnailsAsync(ctx context.Context) {
 			log.Debug(
 				"received thumbnail",
 				slog.String("url", videoUrl),
-				slog.String("progress", string(i+1)+string(amount)))
+				slog.String("progress", fmt.Sprint(i+1)+fmt.Sprint(amount)))
 
 			mu.Lock()
 			c.SaveThumbnails(resp.Thumbnails)
