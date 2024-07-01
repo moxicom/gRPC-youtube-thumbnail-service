@@ -43,3 +43,13 @@ https://www.youtube.com/watch?v=dQw4w9WgXcQ
 ```
 ## Path to save
 Client saves thumbnails to `./output` folder.
+
+## Setting up CI/CD Pipeline with GitHub Actions
+This project uses GitHub Actions to automate the build, test, and deployment process of a Go application using Docker and Docker Compose. This section explains how to set up and use the pipeline.
+
+## Configure Secrets in GitHub
+- `DOCKER_REGISTRY`: The address of your Docker Registry (e.g., docker.io for Docker Hub).
+- `SSH_PRIVATE_KEY`: The private SSH key for accessing your server.
+- `SERVER_USER`: The username on your server.
+- `SERVER_HOST`: The address of your server.
+
