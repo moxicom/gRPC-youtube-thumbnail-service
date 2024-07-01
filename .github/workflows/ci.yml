@@ -1,4 +1,4 @@
-name: Go CI/CD
+name: Go CI/CD with Docker
 
 on:
   push:
@@ -13,57 +13,50 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v3
+      - name: Checkout code
+        uses: actions/checkout@v3
 
-    - name: Set up Go
-      uses: actions/setup-go@v4
-      with:
-        go-version: 1.22.1
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
 
-    - name: Cache Go modules
-      uses: actions/cache@v3
-      with:
-        path: |
-          ~/.cache/go-build
-          /go/pkg/mod
-        key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
-        restore-keys: |
-          ${{ runner.os }}-go-
+      - name: Cache Docker layers
+        uses: actions/cache@v3
+        with:
+          path: /tmp/.buildx-cache
+          key: ${{ runner.os }}-docker-${{ hashFiles('Dockerfile') }}
+          restore-keys: |
+            ${{ runner.os }}-docker-
 
-    - name: Install dependencies
-      run: go mod download
+      - name: Build Docker image
+        run: docker-compose build
 
-    - name: Lint code
-      run: go vet ./...
+      - name: Run tests in Docker container
+        run: docker-compose run --rm app go test -v ./...
 
-    - name: Run tests
-      run: go test -v ./...
+      - name: Push Docker image to registry
+        env:
+          DOCKER_REGISTRY: ${{ secrets.DOCKER_REGISTRY }}
+          DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+          DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
+        run: |
+          echo $DOCKER_PASSWORD | docker login $DOCKER_REGISTRY -u $DOCKER_USERNAME --password-stdin
+          docker-compose push
 
   deploy:
     runs-on: ubuntu-latest
     needs: build
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v3
+      - name: Checkout code
+        uses: actions/checkout@v3
 
-    - name: Set up Go
-      uses: actions/setup-go@v4
-      with:
-        go-version: 1.22.1
-
-    - name: Build
-      run: go build -o myapp ./...
-
-    - name: Deploy to server
-      env:
-        SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-        SERVER_USER: ${{ secrets.SERVER_USER }}
-        SERVER_HOST: ${{ secrets.SERVER_HOST }}
-      run: |
-        echo "${{ env.SSH_PRIVATE_KEY }}" > private_key
-        chmod 600 private_key
-        scp -i private_key myapp ${{ env.SERVER_USER }}@${{ env.SERVER_HOST }}:/path/to/deploy
-        ssh -i private_key ${{ env.SERVER_USER }}@${{ env.SERVER_HOST }} 'sudo systemctl restart myapp'
-
+      - name: Deploy to server
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+        run: |
+          echo "${{ env.SSH_PRIVATE_KEY }}" > private_key
+          chmod 600 private_key
+          scp -i private_key docker-compose.yml ${{ env.SERVER_USER }}@${{ env.SERVER_HOST }}:/path/to/deploy
+          ssh -i private_key ${{ env.SERVER_USER }}@${{ env.SERVER_HOST }} 'cd /path/to/deploy && docker-compose pull && docker-compose up -d'
